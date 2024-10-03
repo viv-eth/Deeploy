@@ -91,6 +91,9 @@ echo-bash:
 	@echo ""
 	@echo "Additionally you need to source the following script:"
 	@echo "source ${PULP_SDK_INSTALL_DIR}/configs/siracusa.sh"
+	@echo ""
+	@echo "Or source the following script:"
+	@echo "source deeploy.sh"
 
 
 toolchain: llvm llvm-compiler-rt-riscv llvm-compiler-rt-arm picolibc-arm picolibc-riscv
