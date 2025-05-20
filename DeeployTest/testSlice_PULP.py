@@ -61,6 +61,7 @@ if __name__ == "__main__":
     _TOOLCHAIN_DIR = os.path.normpath(args.toolchain_install_dir)
 
     signProp = False
+    biasHoist = False
 
     onnx_graph = onnx.load_model('./Tests/testSlice/network.onnx')
     graph = gs.import_onnx(onnx_graph)
@@ -86,7 +87,7 @@ if __name__ == "__main__":
     platform = PULPPlatform()
 
     for index, num in enumerate(test_inputs):
-        _type, offset = inferInputType(num, signProp)[0]
+        _type, offset = inferInputType(num, signProp, biasHoist)[0]
         inputTypes[f"input_{index}"] = _type
         inputOffsets[f"input_{index}"] = offset
 

@@ -35,8 +35,8 @@ from Deeploy.Targets.Generic.Parsers import Conv2DParser, GEMMParser, RQSConv1DP
 
 class PULPConv2DParser(RQSConv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -85,8 +85,8 @@ class PULPConv2DParser(RQSConv2DParser):
 
 class PULPFPConv2DParser(Conv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -130,8 +130,8 @@ class PULPFPConv2DParser(Conv2DParser):
 
 class PULPDWConv1DParser(RQSConv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -193,8 +193,8 @@ class PULPDWConv1DParser(RQSConv1DParser):
 
 class PULPDWConv2DParser(RQSConv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -286,8 +286,8 @@ class PULPDWConv2DParser(RQSConv2DParser):
 
 class PULPConv1DParser(RQSConv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -331,7 +331,7 @@ class PULPConv1DParser(RQSConv1DParser):
 class PULPGEMMParser(GEMMParser, RQSParserInterface):
 
     def __init__(self):
-        super().__init__(noBiasHoisting = True)
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 

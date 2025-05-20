@@ -60,8 +60,8 @@ class CMSISMaxPool2DParser(MaxPool2DParser):
 
 class CMSISDWConv2DParser(RQSConv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -117,8 +117,8 @@ class CMSISDWConv2DParser(RQSConv2DParser):
 
 class CMSISConv2DParser(RQSConv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -158,8 +158,8 @@ class CMSISConv2DParser(RQSConv2DParser):
 
 class CMSISDWConv1DParser(RQSConv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -201,8 +201,8 @@ class CMSISDWConv1DParser(RQSConv1DParser):
 
 class CMSISConv1DParser(RQSConv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -240,8 +240,8 @@ class CMSISConv1DParser(RQSConv1DParser):
 
 class CMSISLinearParser(GEMMParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -315,7 +315,7 @@ class CMSISLinearParser(GEMMParser):
 class CMSISGEMMParser(CMSISLinearParser, RQSParserInterface):
 
     def __init__(self):
-        super().__init__(noBiasHoisting = True)
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 

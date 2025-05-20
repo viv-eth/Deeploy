@@ -1104,9 +1104,8 @@ class MulParser(NodeParser):
 
 class ConvParser(NodeParser):
 
-    def __init__(self, noBiasHoisting):
+    def __init__(self,):
         super().__init__()
-        self.noBiasHoisting = noBiasHoisting
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -1142,13 +1141,12 @@ class ConvParser(NodeParser):
 
         if len(node.inputs) == 3:
             self.operatorRepresentation['bias'] = ctxt.lookup(node.inputs[2].name).name
-        else:
-            if not self.noBiasHoisting:
-                values = np.zeros((1))
-                zeroTensor = gs.Constant(f'{node.name}_Bias_Tensor', values = values)
-                ctxt.hoistConstant(zeroTensor)
-                node.inputs.append(zeroTensor)
-                self.operatorRepresentation['bias'] = f'{node.name}_Bias_Tensor'
+        elif ctxt.biasHoist:
+            values = np.zeros((1))
+            zeroTensor = gs.Constant(f'{node.name}_Bias_Tensor', values = values)
+            ctxt.hoistConstant(zeroTensor)
+            node.inputs.append(zeroTensor)
+            self.operatorRepresentation['bias'] = f'{node.name}_Bias_Tensor'
 
         self.operatorRepresentation['size'] = np.prod(ctxt.lookup(node.inputs[0].name).shape)
 
@@ -1157,8 +1155,8 @@ class ConvParser(NodeParser):
 
 class Conv2DParser(ConvParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -1226,8 +1224,8 @@ class Conv2DParser(ConvParser):
 
 class RQSConv2DParser(Conv2DParser, RQSParserInterface):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         ret_rqs = RQSParserInterface.parseNode(self, node)
@@ -1243,8 +1241,8 @@ class RQSConv2DParser(Conv2DParser, RQSParserInterface):
 
 class Conv1DParser(ConvParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -1307,8 +1305,8 @@ class Conv1DParser(ConvParser):
 
 class RQSConv1DParser(Conv1DParser, RQSParserInterface):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         ret_rqs = RQSParserInterface.parseNode(self, node)
@@ -1582,9 +1580,8 @@ class LayerNormParser(iLayerNormParser):
 
 class MatMulParser(NodeParser):
 
-    def __init__(self, noBiasHoisting = True):
+    def __init__(self):
         super().__init__()
-        self.noBiasHoisting = noBiasHoisting
 
     def parseNode(self, node: gs.Node) -> (bool):
 
@@ -1616,7 +1613,7 @@ class MatMulParser(NodeParser):
             self.operatorRepresentation[outputs[idx]] = ctxt.lookup(outputNode.name).name
 
         # Create fake C node for GEMM-compatibility and hoist it
-        if not self.noBiasHoisting:
+        if ctxt.biasHoist:
             values = np.zeros(ctxt.lookup(node.inputs[0].name).shape, dtype = inputNode.dtype)
             zeroTensor = gs.Constant(f'{node.name}_C_Tensor', values = values)
             ctxt.hoistConstant(zeroTensor, _type = ctxt.lookup(inputNode.name)._type)
@@ -1648,9 +1645,8 @@ class MatMulParser(NodeParser):
 
 class RQMatMulParser(MatMulParser, RQSParserInterface):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
-        self.noBiasHoisting = noBiasHoisting
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         ret_rqs = RQSParserInterface.parseNode(self, node)
@@ -1687,8 +1683,7 @@ class RQMatMulParser(MatMulParser, RQSParserInterface):
 # This parser combines Matmul nodes and GEMM nodes to the more general GEMM nodes
 class GEMMParser(MatMulParser):
 
-    def __init__(self, noBiasHoisting = True):
-        self.noBiasHoisting = noBiasHoisting
+    def __init__(self):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
@@ -1746,7 +1741,7 @@ class GEMMParser(MatMulParser):
 
             if len(node.inputs) == 3:
                 self.operatorRepresentation['C'] = newCtxt.lookup(node.inputs[2].name).name
-            elif not self.noBiasHoisting:
+            elif ctxt.biasHoist:
                 values = np.zeros((1))
                 zeroTensor = gs.Constant(f'{node.name}_C_Tensor', values = values)
                 newCtxt.hoistConstant(zeroTensor)
@@ -1759,8 +1754,7 @@ class GEMMParser(MatMulParser):
 
 class RQGEMMParser(GEMMParser, RQSParserInterface):
 
-    def __init__(self, noBiasHoisting = True):
-        self.noBiasHoisting = noBiasHoisting
+    def __init__(self):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
@@ -1796,7 +1790,7 @@ class RQGEMMParser(GEMMParser, RQSParserInterface):
 
             if len(node.inputs) == 5:
                 self.operatorRepresentation['C'] = newCtxt.lookup(node.inputs[2].name).name
-            elif not self.noBiasHoisting:
+            elif ctxt.biasHoist:
                 values = np.zeros((1))
                 zeroTensor = gs.Constant(f'{node.name}_C_Tensor', values = values)
                 newCtxt.hoistConstant(zeroTensor)
@@ -2041,8 +2035,8 @@ class GenericMaxPool2DParser(MaxPool2DParser):
 
 class GenericConv1DParser(Conv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         wellFormed = super().parseNode(node)
@@ -2077,8 +2071,8 @@ class GenericConv1DParser(Conv1DParser):
 
 class GenericDWConv1DParser(Conv1DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         wellFormed = super().parseNode(node)
@@ -2113,8 +2107,8 @@ class GenericDWConv1DParser(Conv1DParser):
 
 class GenericConv2DParser(Conv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         wellFormed = super().parseNode(node)
@@ -2167,8 +2161,8 @@ class GenericConv2DParser(Conv2DParser):
 
 class GenericDWConv2DParser(Conv2DParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
         wellFormed = super().parseNode(node)
@@ -2214,8 +2208,8 @@ class GenericDWConv2DParser(Conv2DParser):
 
 class GenericGEMMParser(GEMMParser):
 
-    def __init__(self, noBiasHoisting = True):
-        super().__init__(noBiasHoisting)
+    def __init__(self):
+        super().__init__()
 
     def parseNode(self, node: gs.Node) -> (bool):
 

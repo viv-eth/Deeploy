@@ -60,6 +60,7 @@ def dataWidth(n):
 
 def inferInputType(_input: np.ndarray,
                    signProp: Optional[bool] = None,
+                   biasHoist: bool = False,
                    defaultType = PointerClass(int8_t),
                    defaultOffset = 0) -> List[offsetType]:
 
@@ -78,7 +79,7 @@ def inferInputType(_input: np.ndarray,
     # FIXME: this is okay for now (3 distinctions are fine), but there is implicit
     # knowledge encoded in the order of the checks (i.e. first unsigned, signed
     # and then float). It might be good to extract that implicit knowledge into an ordered list.
-    if signProp and isUnsigned(_input) and isInteger(_input):
+    if biasHoist and signProp and isUnsigned(_input) and isInteger(_input):
         for _type in sorted(signedPlatformTypes, key = lambda x: x.typeWidth):
             signPropOffset = (2**(_type.typeWidth - 1))
             if _type.checkPromotion(_input - signPropOffset):

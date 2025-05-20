@@ -153,7 +153,7 @@ def setupDeployer(graph: gs.Graph, memoryHierarchy: MemoryHierarchy, defaultTarg
     # Load as int64 and infer types later
     test_inputs = [inputs[x].reshape(-1).astype(np.float64) for x in inputs.files]
 
-    platform, signProp = mapPlatform(args.platform)
+    platform, signProp, biasHoist = mapPlatform(args.platform)
 
     if args.enable_3x3:
         platform.engines[0].enable3x3 = True
@@ -164,7 +164,7 @@ def setupDeployer(graph: gs.Graph, memoryHierarchy: MemoryHierarchy, defaultTarg
         # WIESP: Do not infer types and offset of empty arrays
         if np.prod(num.shape) == 0:
             continue
-        _type, offset = inferInputType(num, signProp)[0]
+        _type, offset = inferInputType(num, signProp, biasHoist)[0]
         inputTypes[f"input_{index}"] = _type
         inputOffsets[f"input_{index}"] = offset
 
@@ -329,7 +329,7 @@ if __name__ == '__main__':
         # WIESP: Do not infer types and offset of empty arrays
         if np.prod(num.shape) == 0:
             continue
-        _type, offset = inferInputType(num, signProp)[0]
+        _type, offset = inferInputType(num, signProp, biasHoist)[0]
         inputTypes[f"input_{index}"] = _type
         inputOffsets[f"input_{index}"] = offset
 

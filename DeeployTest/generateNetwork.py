@@ -88,13 +88,13 @@ if __name__ == '__main__':
             test_inputs = [test_inputs[0]]
             test_outputs = [test_outputs[-2]]
 
-    platform, signProp = mapPlatform(args.platform)
+    platform, signProp, biasHoist = mapPlatform(args.platform)
 
     for index, num in enumerate(test_inputs):
         # WIESP: Do not infer types and offset of empty arrays
         if np.prod(num.shape) == 0:
             continue
-        _type, offset = inferInputType(num, signProp)[0]
+        _type, offset = inferInputType(num, signProp, biasHoist)[0]
         inputTypes[f"input_{index}"] = _type
         inputOffsets[f"input_{index}"] = offset
 

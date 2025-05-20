@@ -84,10 +84,10 @@ if __name__ == '__main__':
     memoryHierarchy.setDefaultMemoryLevel("L3")
     defaultTargetMemoryLevel = L1
 
-    platform, signProp = mapPlatform(args.platform)
+    platform, signProp, biasHoist = mapPlatform(args.platform)
 
     for index, num in enumerate(test_inputs):
-        _type, offset = inferInputType(num, signProp)[0]
+        _type, offset = inferInputType(num, signProp, biasHoist)[0]
         inputTypes[f"input_{index}"] = _type
         inputOffsets[f"input_{index}"] = offset
         if "simpleRegression" in args.dir:

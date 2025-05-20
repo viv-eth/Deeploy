@@ -498,6 +498,7 @@ class NetworkContext():
     """The global context of the compiler. This object holds all the typing inferred in the type-checking passes within the respective buffers. It holds all hoisted transient buffers, struct buffers, and global definitions. The context is the source of truth for all code generation in the backend.
     """
 
+    #TODO: Define a cfg object that holds the configuration for the network context
     def __init__(self,
                  variableBuffer: Type[VariableBuffer],
                  constantBuffer: Type[ConstantBuffer],
@@ -505,6 +506,7 @@ class NetworkContext():
                  transientBuffer: Type[TransientBuffer],
                  globalObjects = {},
                  localObjects = {},
+                 biasHoist: bool = False,
                  name: str = 'DeeployNetwork'):
         self.globalObjects = OrderedDict()
         self.localObjects = OrderedDict()
@@ -512,6 +514,7 @@ class NetworkContext():
         self.ConstantBuffer = constantBuffer
         self.StructBuffer = structBuffer
         self.TransientBuffer = transientBuffer
+        self.biasHoist = biasHoist
         self.name = name
 
     def dealiasBuffer(self, referenceName: str) -> str:
@@ -2355,7 +2358,8 @@ class NetworkContainer():
         self.ctxt = NetworkContext(variableBuffer = self.Platform.VariableBuffer,
                                    constantBuffer = self.Platform.ConstantBuffer,
                                    structBuffer = self.Platform.StructBuffer,
-                                   transientBuffer = self.Platform.TransientBuffer)
+                                   transientBuffer = self.Platform.TransientBuffer,
+                                   biasHoist = getattr(self.Platform, 'biasHoist', False))
 
         self.deeployStateDir = deeployStateDir
 

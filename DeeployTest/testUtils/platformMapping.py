@@ -46,6 +46,8 @@ from Deeploy.Targets.Snitch.Platform import SnitchOptimizer, SnitchPlatform
 
 _SIGNPROP_PLATFORMS = ["Apollo3", "Apollo4", "QEMU-ARM", "Generic", "MemPool"]
 _NONSIGNPROP_PLATFORMS = ["Siracusa", "Siracusa_w_neureka", "PULPOpen", "Snitch"]
+# TODO: Figure out which platforms need bias hoisting
+_BIAS_HOIST_PLATFORMS = ["Apollo3", "Apollo4", "QEMU-ARM"]
 _PLATFORMS = _SIGNPROP_PLATFORMS + _NONSIGNPROP_PLATFORMS
 
 
@@ -62,6 +64,11 @@ def mapPlatform(platformName: str) -> Tuple[DeploymentPlatform, bool]:
         signProp = True
     else:
         signProp = False
+
+    if platformName in _BIAS_HOIST_PLATFORMS:
+        biasHoist = True
+    else:
+        biasHoist = False
 
     if platformName == "Apollo3" or platformName == "Apollo4" or platformName == "QEMU-ARM":
         Platform = CMSISPlatform()
@@ -84,7 +91,7 @@ def mapPlatform(platformName: str) -> Tuple[DeploymentPlatform, bool]:
     else:
         raise RuntimeError(f"Deployment platform {platformName} is not implemented")
 
-    return Platform, signProp
+    return Platform, signProp, biasHoist
 
 
 def setupMemoryPlatform(platform: DeploymentPlatform, memoryHierarchy: MemoryHierarchy,

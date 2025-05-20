@@ -246,10 +246,10 @@ def setupDeployer(memoryHierarchy: MemoryHierarchy, graph: gs.Graph) -> NetworkD
     # Load as int64 and infer types later
     test_inputs = [inputs[x].reshape(-1).astype(np.int64) for x in inputs.files]
 
-    platform, signProp = mapPlatform(args.platform)
+    platform, signProp, biasHoist = mapPlatform(args.platform)
 
     for index, num in enumerate(test_inputs):
-        _type, offset = inferInputType(num, signProp)[0]
+        _type, offset = inferInputType(num, signProp, biasHoist)[0]
         inputTypes[f"input_{index}"] = _type
         inputOffsets[f"input_{index}"] = offset
 
