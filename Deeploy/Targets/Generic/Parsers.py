@@ -2486,3 +2486,98 @@ class SGDParser(NodeParser):
         self.operatorRepresentation['lr'] = node.attrs['lr']
 
         return ctxt, True
+
+
+class EncodeParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> bool:
+        # our new custom Encode has 1 input, 2 outputs, and exactly these attrs:
+        required = {
+            "vocabSize", "maxPieceLen", "byteFallbackOffset", "unkId", "prefixId", "vocabPieces", "vocabIds",
+            "vocabScores"
+        }
+        if node.op != "Encode" \
+            or len(node.inputs) != 1 \
+            or len(node.outputs) != 2 \
+            or not required.issubset(node.attrs.keys()):
+            return False
+
+        # helper to pull out either numpy scalars, lists, or built-in lists
+        def unwrap(attr):
+            if hasattr(attr, "tolist"):
+                return attr.tolist()
+            if hasattr(attr, "values"):
+                return attr.values.tolist()
+            if isinstance(attr, list):
+                return attr
+            raise TypeError(f"Don’t know how to unwrap {attr!r}")
+
+        def c_literal(s: str) -> str:
+            r"""
+            Build a C string literal containing s in UTF-8,
+            escaping only \", \\, NL and CR.
+            Other bytes (including UTF-8 multibyte) are left as-is.
+            The returned string includes its wrapping quotes.
+            """
+            b = s.encode("utf-8")
+            out = []
+            for byte in b:
+                if byte == 0x22:  # "
+                    out.append(r'\"')
+                elif byte == 0x5C:  # backslash
+                    out.append(r'\\')
+                elif byte == 0x0A:  # newline
+                    out.append(r'\n')
+                elif byte == 0x0D:  # carriage-return
+                    out.append(r'\r')
+                elif 0x20 <= byte < 0x7F:  # printable ASCII
+                    out.append(chr(byte))
+                else:
+                    # non-ASCII → raw \xHH escape
+                    out.append(f"\\x{byte:02x}")
+            return '"' + "".join(out) + '"'
+
+        # scalar attrs
+        self.operatorRepresentation["vocabSize"] = int(node.attrs["vocabSize"])
+        self.operatorRepresentation["maxPieceLen"] = int(node.attrs["maxPieceLen"])
+        self.operatorRepresentation["byteFallbackOffset"] = int(node.attrs["byteFallbackOffset"])
+        self.operatorRepresentation["unkId"] = int(node.attrs["unkId"])
+        self.operatorRepresentation["prefixId"] = int(node.attrs["prefixId"])
+
+        # pull out the two flat lists
+        pieces = unwrap(node.attrs["vocabPieces"])
+        escaped = [c_literal(p) for p in pieces]
+        ids = unwrap(node.attrs["vocabIds"])
+        scores = unwrap(node.attrs["vocabScores"])
+        items = list(zip(escaped, ids))
+        # re-zip into your single list for the template
+        self.operatorRepresentation["vocabItems"] = list(zip(escaped, ids))
+        self.operatorRepresentation["vocabScores"] = scores
+        vocabPiecesById = [""] * len(escaped)
+        for lit, idx in items:
+            vocabPiecesById[idx] = lit
+        self.operatorRepresentation["vocabPiecesById"] = vocabPiecesById
+
+        return True
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        inp = ctxt.lookup(node.inputs[0].name)
+        out_ids = ctxt.lookup(node.outputs[0].name)
+        out_n = ctxt.lookup(node.outputs[1].name)
+
+        # 1-D input
+        L = int(inp.shape[0])
+
+        # now fill in the rest of the names your template uses
+        self.operatorRepresentation["inputLen"] = L
+        self.operatorRepresentation["input_bytes"] = inp.name
+        self.operatorRepresentation["token_ids"] = out_ids.name
+        self.operatorRepresentation["n_tokens"] = out_n.name
+
+        return ctxt, True
