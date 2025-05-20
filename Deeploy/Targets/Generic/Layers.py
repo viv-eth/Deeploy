@@ -599,3 +599,50 @@ class DequantLayer(ONNXLayer):
 
     def __init__(self, maps: List[NodeMapper]):
         super().__init__(maps)
+
+
+class EncodeLayer(ONNXLayer):
+    """
+    Layer wrapper for the BPE‐based tokenizer (`Encode` op).
+    - input:   [ inputLen ] (uint8 bytes)
+    - outputs: [ inputLen ] (int32 token_ids), [] (int32 n_tokens)
+    - computeOps approximates:
+        • inputLen byte reads
+        • numRules * inputLen merge comparisons
+        • inputLen token writes
+        • 1 write for n_tokens
+    """
+
+    def __init__(self, maps: List[NodeMapper]):
+        super().__init__(maps)
+
+    def computeShapes(self, inputShapes: List[Shape], outputShapes: List[Shape],
+                      operatorRepresentation: OperatorRepresentation,
+                      channels_first: bool) -> Tuple[List[Shape], List[Shape]]:
+        # consume one 1-D uint8 array [inputLen]
+        L = int(inputShapes[0][0])
+        # produce a 1-D int32 array [inputLen] and a scalar int32 []
+        return inputShapes, [[L], []]
+
+    def computeOps(self) -> int:
+        op = self.mapper.parser.operatorRepresentation
+        inputLen = int(op["inputLen"])
+
+        # 1) Read each input byte
+        reads = inputLen
+
+        # 2) One str_lookup (binary‐search) per code‐point
+        lookups = inputLen
+
+        # 3) Worst‐case greedy merges:
+        #    on each merge we scan ~current_length−1 pairs, and we do
+        #    up to (initial_length−1) merges total.
+        #    sum_{k=1..inputLen−1} k  = inputLen*(inputLen−1)/2
+        merges = inputLen * (inputLen - 1) // 2
+
+        # 4) Write out each token id
+        writes = inputLen
+        # 5) One extra write for the final n_tokens scalar
+        writes += 1
+
+        return reads + lookups + merges + writes
