@@ -30,7 +30,7 @@ from Deeploy.CommonExtensions.OptimizationPasses.TopologyOptimizationPasses.Lowe
     RemoveEmptyConvBiasPass
 from Deeploy.DeeployTypes import ConstantBuffer, DeploymentEngine, DeploymentPlatform, NodeMapper, NodeTemplate, \
     StructBuffer, TopologyOptimizer, TransientBuffer, VariableBuffer
-from Deeploy.Targets.Generic.Bindings import BasicAddBindings, BasicConv1DBinding, BasicConv2DBindings, \
+from Deeploy.Targets.Generic.Bindings import BasicAddBindings, BasicConcatBindings, BasicConv1DBinding, \
     BasicDebugPrintBindings, BasicDequantBindings, BasicDivBindings, BasicDWConv1DBinding, BasicDWConv2DBinding, \
     BasicEncodeBindings, BasicGatherBindings, BasicGELUBindings, BasicGEMMBindings, BasicITAPartialSoftmaxBinding, \
     BasicITASoftmaxBinding, BasicLayerNormBindings, BasicMatMulBindings, BasicMaxPool2DBindings, BasicMulBindings, \
@@ -53,6 +53,7 @@ from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import DequantPat
     iGELURequantMergePass
 
 AddMapper = NodeMapper(AddParser(), BasicAddBindings)
+ConcatMapper = NodeMapper(ConcatParser(), BasicConcatBindings)
 Conv1DMapper = NodeMapper(GenericConv1DParser(), [BasicConv1DBinding])
 Conv2DMapper = NodeMapper(GenericConv2DParser(), BasicConv2DBindings)
 DebugMapper = NodeMapper(DebugParser(), BasicDebugPrintBindings)
@@ -96,6 +97,7 @@ DummyMapper = NodeMapper(DummyParser(), [DummyBinding])
 
 GenericMapping = {
     'Add': AddLayer([AddMapper]),
+    'Concat': ConcatLayer([ConcatMapper]),
     'Conv': ConvLayer([Conv2DMapper, DWConv2DMapper, Conv1DMapper, DWConv1DMapper]),
     'DebugPrint': DebugPrintLayer([DebugMapper]),
     'Div': DivLayer([DivMapper]),
