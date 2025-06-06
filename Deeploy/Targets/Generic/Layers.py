@@ -646,3 +646,41 @@ class EncodeLayer(ONNXLayer):
         writes += 1
 
         return reads + lookups + merges + writes
+
+
+class DecodeLayer(ONNXLayer):
+    """
+    Layer wrapper for our new Decode op, which now:
+        - takes two int32 arrays of length N (prev_ids, ids)
+        - emits a flat uint8 buffer of length N * maxPieceLen
+    """
+
+    def __init__(self, maps: List):
+        super().__init__(maps)
+
+    def computeShapes(self, inputShapes: List[Shape], outputShapes: List[Shape],
+                      operatorRepresentation: OperatorRepresentation,
+                      channels_first: bool) -> Tuple[List[Shape], List[Shape]]:
+        # inputShapes[0] == [N]  where N == nTokens
+        N = int(inputShapes[0][0])
+        # maxPieceLen was injected by the parser
+        M = int(outputShapes[0][0])
+        # we produce one flat buffer of size N * M
+        return inputShapes, [[M]]
+
+    def computeOps(self) -> int:
+        op = self.mapper.parser.operatorRepresentation
+        # actual number of tokens
+        N = int(op["nTokens"])
+        # worst-case bytes per token
+        M = int(op["maxPieceLen"])
+
+        # cost model:
+        #   * 1 vocab lookup per token
+        #   * 1 sscanf attempt per token
+        #   * up to M byte‐writes per token
+        lookups = N
+        scans = N
+        writes = M
+
+        return lookups + scans + writes
