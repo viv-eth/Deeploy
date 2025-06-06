@@ -36,15 +36,16 @@ from Deeploy.CommonExtensions.DataTypes import IntegerDataTypes, SignedIntegerDa
 from Deeploy.DeeployTypes import CodeTransformation, NodeBinding
 from Deeploy.FutureExtension.CodeTransformationPasses.FutureCodeTransformation import FutureGeneration
 from Deeploy.Targets.Generic.Templates import AddTemplate, ConcatTemplate, ConvTemplate, DebugPrintTemplate, \
-    DequantTemplate, DummyTemplate, DWConvTemplate, EncodeTemplate, FloatAddTemplate, FloatConvTemplate, FloatDivTemplate, \
-    FloatDWConvTemplate, FloatGELUTemplate, FloatGemmTemplate, FloatLayernormTemplate, FloatMatMulTemplate, FloatMaxPoolTemplate, \
-    FloatMulTemplate, FloatPadTemplate, FloatReluTemplate, FloatSoftmaxTemplate, GatherTemplate, GemmTemplate, \
-    IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, MatMulTemplate, MaxPoolTemplate, MulTemplate, \
-    PadTemplate, QuantTemplate, ReduceMeanTemplate, ReduceSumTemplate, RequantShiftTemplate, ReshapeTemplate, \
-    RQIntegerDivTemplate, RQSiGELUTemplate, SliceTemplate, TransposeTemplate, iGELUTemplate, iLayernormTemplate, \
-    iRMSNormTemplate, iSoftmaxTemplate
+    DecodeTemplate, DequantTemplate, DummyTemplate, DWConvTemplate, EncodeTemplate, FloatAddTemplate, \
+    FloatConvTemplate, FloatDivTemplate, FloatDWConvTemplate, FloatGELUTemplate, FloatGemmTemplate, \
+    FloatLayernormTemplate, FloatMatMulTemplate, FloatMaxPoolTemplate, FloatMulTemplate, FloatPadTemplate, \
+    FloatReluTemplate, FloatSoftmaxTemplate, GatherTemplate, GemmTemplate, IntegerDivTemplate, ITAMaxTemplate, \
+    ITAPartialMaxTemplate, MatMulTemplate, MaxPoolTemplate, MulTemplate, PadTemplate, QuantTemplate, \
+    ReduceMeanTemplate, ReduceSumTemplate, RequantShiftTemplate, ReshapeTemplate, RQIntegerDivTemplate, \
+    RQSiGELUTemplate, SliceTemplate, TransposeTemplate, iGELUTemplate, iLayernormTemplate, iRMSNormTemplate, \
+    iSoftmaxTemplate
 from Deeploy.Targets.Generic.TypeCheckers import AddChecker, ConcatChecker, ConvChecker, DebugPrintChecker, \
-    DequantChecker, DivChecker, DummyChecker, EncodeChecker, GatherChecker, GELUChecker, GEMMChecker, \
+    DecodeChecker, DequantChecker, DivChecker, DummyChecker, EncodeChecker, GatherChecker, GELUChecker, GEMMChecker, \
     LayerNormChecker, MatMulChecker, MaxPoolChecker, MulChecker, PadChecker, QuantChecker, ReduceMeanChecker, \
     ReduceSumChecker, ReluChecker, RequantShiftChecker, ReshapeChecker, RQIntegerDivChecker, SliceChecker, \
     SoftmaxChecker, TransposeChecker
@@ -286,6 +287,9 @@ BasicDequantBindings = [
 ]
 
 BasicEncodeBindings = NodeBinding(
-    EncodeChecker([PointerClass(uint8_t)], [PointerClass(int32_t), PointerClass(int32_t)]),
-    EncodeTemplate.referenceTemplate,
-    BasicTransformer)
+    EncodeChecker([PointerClass(uint8_t), PointerClass(int32_t)],
+                  [PointerClass(int32_t), PointerClass(int32_t)]), EncodeTemplate.referenceTemplate, BasicTransformer)
+
+BasicDecodeBindings = NodeBinding(
+    DecodeChecker([PointerClass(int32_t), PointerClass(int32_t)], [PointerClass(uint8_t)]),
+    DecodeTemplate.referenceTemplate, BasicTransformer)
