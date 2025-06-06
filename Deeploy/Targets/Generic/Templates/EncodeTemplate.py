@@ -25,187 +25,142 @@
 from Deeploy.DeeployTypes import NodeTemplate
 
 referenceTemplate = NodeTemplate(r"""
-
 /* ——————————————————————
-    sorted_vocab & scores
+    flat arrays for sorted vocab, scores & reverse mapping
    —————————————————————— */
 
-typedef struct { const char *str; int id; } TokenIndex;
-
-// actual number of valid entries
 #define N ${vocabSize}
 
-static const TokenIndex sorted_vocab[N] = {
+/* sorted list of (piece, id) for blind scan */
+static const char *sorted_vocab_str[N] = {
 % for lit, idx in vocabItems:
-    {${lit}, ${idx} }${"," if not loop.last else ""}
+    ${lit}${"," if not loop.last else ""}
+% endfor
+};
+static const int sorted_vocab_id[N] = {
+% for lit, idx in vocabItems:
+    ${idx}${"," if not loop.last else ""}
 % endfor
 };
 
+/* merge scores */
 static const float vocab_scores[N] = {
 % for sc in vocabScores:
     ${"%.9g" % sc}${"," if not loop.last else ""}
 % endfor
 };
 
+/* reverse lookup from id→string */
 static const char *vocab_by_id[N] = {
 % for piece in vocabPiecesById:
     ${piece}${"," if not loop.last else ""}
 % endfor
 };
 
-// Debug printing macro: enable by defining ENCODE_DEBUG
-#ifndef ENCODE_DEBUG
-    #define DEBUG_PRINT(...) ((void)0)
-#else
-    #define DEBUG_PRINT(...) printf(__VA_ARGS__)
-#endif
-
 BEGIN_SINGLE_CORE
 
-  /* Variables needed by both phases or the outer scope */
-  char str_buffer[${maxPieceLen*2+3}]; // Buffer for merge operations (twice the max piece length plus safety)
-  char *text = (char *)${input_bytes}; /* C‐string input */
-  int current_token_count = 0; // Counter for output tokens
-  char *p = ${input_bytes}; // Pointer to the current position in the input string
-  bool is_first_token = true; // Flag to handle the special first token prefix rule
+    /* local flat buffer large enough for worst-case (seqLen entries) */
+    int flat_ids[${sequenceLength}];
+    *${n_tokens} = 0;
 
-    /* —— 1) Greedy Longest Match Segmentation with First Token Prefix —— */
-    while (*p != '\0' && current_token_count < 1024) {
-        int best_match_id = -1;
-        size_t best_match_len = 0; // Length in bytes of the input substring matched
+    /* 1) optional BOS */
+    if (${bosName}) {
+        flat_ids[(*${n_tokens})++] = ${bosId};
+    }
 
-        // Max substring length to check
-        size_t max_check_len = ${maxPieceLen};
+    /* 2) optional dummy-prefix (space) */
+    if (*${inputBytes} != '\0') {
+        flat_ids[(*${n_tokens})++] = ${prefixId};
+    }
 
-        for (size_t len = 1; len <= max_check_len; ++len) {
-            if (*(p + len - 1) == '\0' && len > 1) break;
-            char lookup_buffer[${maxPieceLen*2+3} + 1];
-            size_t lookup_len = 0;
-            int current_id = -1;
-            if (is_first_token) {
-                if (${prefixId} < 0 || ${prefixId} >= N) {
-                    DEBUG_PRINT("Warning: prefix token ID %d out of bounds (size %d)\n", ${prefixId}, N);
+    /* 3) greedy longest-match tokenization with byte-fallback */
+    {
+        char *str_buffer = malloc((${maxPieceLen}*2 + 3) * sizeof(char));
+        size_t str_len = 0;
+        for (const unsigned char *c = (const unsigned char*)${inputBytes}; *c; ++c) {
+            if (((*c) & 0xC0) != 0x80) {
+                str_len = 0;
+            }
+            str_buffer[str_len++] = (char)*c;
+            str_buffer[str_len]   = '\0';
+            if ((((unsigned char)*(c+1)) & 0xC0) == 0x80 && str_len < 4) {
+                continue;
+            }
+
+            /* inline str_lookup */
+            int id = -1;
+            for (int i = 0; i < N; ++i) {
+                if (strcmp(str_buffer, sorted_vocab_str[i]) == 0) {
+                    id = sorted_vocab_id[i];
                     break;
                 }
-                const char *prefix_str = vocab_by_id[${prefixId}];
-                size_t prefix_len = strlen(prefix_str);
-                if (prefix_len + len < sizeof(lookup_buffer)) {
-                    memcpy(lookup_buffer, prefix_str, prefix_len);
-                    memcpy(lookup_buffer + prefix_len, p, len);
-                    lookup_len = prefix_len + len;
-                    lookup_buffer[lookup_len] = '\0';
-                    current_id = str_lookup(lookup_buffer, (const TokenIndex *)sorted_vocab, N);
-                }
             }
-            int current_id_no_prefix = -1;
-            if (len < sizeof(lookup_buffer)) {
-                memcpy(lookup_buffer, p, len);
-                lookup_len = len;
-                lookup_buffer[lookup_len] = '\0';
-              current_id_no_prefix = str_lookup(lookup_buffer, (const TokenIndex *)sorted_vocab, N);
-            }
-            if (is_first_token && current_id >= 0) {
-                if (len > best_match_len) {
-                    best_match_id = current_id;
-                    best_match_len = len;
-                }
-            } else if (current_id_no_prefix >= 0) {
-                if (len > best_match_len) {
-                    best_match_id = current_id_no_prefix;
-                    best_match_len = len;
-                }
-            }
-            if (*(p + len - 1) == '\0') break;
-        }
 
-        if (best_match_id != -1) {
-            if (best_match_id >= 0 && best_match_id < N) {
-                DEBUG_PRINT("Greedy match '%s' -> id=%d\n", vocab_by_id[best_match_id], best_match_id);
+            if (id >= 0 && id != ${unkId}) {
+                flat_ids[(*${n_tokens})++] = id;
+            } else {
+                for (size_t j = 0; j < str_len; ++j) {
+                    unsigned char b = (unsigned char)str_buffer[j];
+                    int outb = b + ${byteFallbackOffset};
+                    flat_ids[(*${n_tokens})++] = outb;
+                }
             }
-            ${token_ids}[current_token_count++] = best_match_id;
-            p += best_match_len;
-            is_first_token = false;
-        } else {
-            unsigned char b = (unsigned char)*p;
-            int fb = b + ${byteFallbackOffset};
-            DEBUG_PRINT("byte-fallback '%c' -> id=%d\n", b, fb);
-            ${token_ids}[current_token_count++] = fb;
-            p += 1;
-            is_first_token = false;
         }
+        free(str_buffer);
     }
-  *${n_tokens} = current_token_count;
 
-  /* —— 2) merge-best-pair loop —— */
-    while (1) {
-        float best_score = -INFINITY;
-        int best_id = -1, best_idx = -1;
-        int T = *${n_tokens};
-        DEBUG_PRINT("--- merge iteration, n_tokens=%d\n", T);
-        if (T < 2) {
-            DEBUG_PRINT("no more merges (less than 2 tokens)\n");
-            break;
-        }
-        for (int i = 0; i < T - 1; ++i) {
-            if (${token_ids}[i] < 0 || ${token_ids}[i] >= N || ${token_ids}[i+1] < 0 || ${token_ids}[i+1] >= N) {
-                DEBUG_PRINT("trying merge invalid tokens: id1=%d, id2=%d\n", ${token_ids}[i], ${token_ids}[i+1]);
-                continue;
+    /* 4) score-based pairwise merging */
+    {
+        char *str_buffer = malloc((${maxPieceLen}*2 + 3) * sizeof(char));
+        while (1) {
+            float best_score = -INFINITY;
+            int   best_id    = -1;
+            int   best_idx   = -1;
+            int   T          = *${n_tokens};
+            if (T < 2) {
+                break;
             }
-            const char *a = vocab_by_id[${token_ids}[i]];
-            const char *b = vocab_by_id[${token_ids}[i + 1]];
-            DEBUG_PRINT("trying merge '%s' + '%s'\n", a, b);
-            size_t la = strlen(a), lb = strlen(b);
-            if (la + lb >= sizeof(str_buffer)) {
-                DEBUG_PRINT("  concat '%s%s' too long for buffer (size %zu)\n", a, b, sizeof(str_buffer));
-                continue;
-            }
-            memcpy(str_buffer, a, la);
-            memcpy(str_buffer + la, b, lb);
-            str_buffer[la + lb] = '\0';
-            int merge_id = str_lookup(str_buffer, (const TokenIndex *)sorted_vocab, N);
-            DEBUG_PRINT("  concat '%s' -> id=%d\n", str_buffer, merge_id);
-            if (merge_id >= 0 && merge_id < N) {
-                float sc = vocab_scores[merge_id];
-                DEBUG_PRINT("  score[%d]=%f\n", merge_id, sc);
-                if (sc > best_score) {
-                    best_score = sc;
-                    best_id    = merge_id;
+
+            for (int i = 0; i < T-1; ++i) {
+                sprintf(str_buffer, "%s%s",
+                        vocab_by_id[ flat_ids[i] ],
+                        vocab_by_id[ flat_ids[i+1] ]);
+                int m = -1;
+                for (int k = 0; k < N; ++k) {
+                    if (strcmp(str_buffer, sorted_vocab_str[k]) == 0) {
+                        m = sorted_vocab_id[k];
+                        break;
+                    }
+                }
+                if (m >= 0 && vocab_scores[m] > best_score) {
+                    best_score = vocab_scores[m];
+                    best_id    = m;
                     best_idx   = i;
                 }
-            } else {
-                DEBUG_PRINT("  Warning: merge_id %d out of bounds (size %d)\n", merge_id, N);
             }
+
+            if (best_idx < 0) {
+                break;
+            }
+
+            flat_ids[best_idx] = best_id;
+            for (int j = best_idx+1; j < T-1; ++j) {
+                flat_ids[j] = flat_ids[j+1];
+            }
+            (*${n_tokens})--;
         }
-        if (best_idx < 0) {
-            DEBUG_PRINT("no more merges (no valid pair found)\n");
-            break;
-        }
-        DEBUG_PRINT("perform merge at idx=%d, id=%d, score=%f\n", best_idx, best_id, best_score);
-        ${token_ids}[best_idx] = best_id;
-        for (int j = best_idx + 1; j < T - 1; ++j) {
-            ${token_ids}[j] = ${token_ids}[j + 1];
-        }
-        (*${n_tokens})--;
+        free(str_buffer);
     }
-    DEBUG_PRINT("Final concated string: ");
-    int T = *${n_tokens};
-    for (int i = 0; i < T; ++i) {
-        if (${token_ids}[i] >= 0 && ${token_ids}[i] < N) {
-            DEBUG_PRINT("%s ", vocab_by_id[${token_ids}[i]]);
-        } else {
-            DEBUG_PRINT("[INVALID_TOKEN_ID:%d] ", ${token_ids}[i]);
-        }
+
+    /* 5) optional EOS */
+    if (${eosName}) {
+        flat_ids[(*${n_tokens})++] = ${eosId};
     }
-    DEBUG_PRINT("\nFinal tokens: ");
-    for (int i = 0; i < T; ++i) {
-        if (${token_ids}[i] >= 0 && ${token_ids}[i] < N) {
-            DEBUG_PRINT("%d ", ${token_ids}[i]);
-        } else {
-            DEBUG_PRINT("%d (INVALID) ", ${token_ids}[i]);
-        }
+
+    /* 6) finally copy exactly n_tokens entries into the real ONNX output */
+    for (int i = 0; i < *${n_tokens}; ++i) {
+        ${tokenIds}[i] = flat_ids[i];
     }
-    DEBUG_PRINT("\n");
 
 END_SINGLE_CORE
-
 """)
