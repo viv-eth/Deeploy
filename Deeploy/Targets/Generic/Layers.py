@@ -621,29 +621,32 @@ class EncodeLayer(ONNXLayer):
                       channels_first: bool) -> Tuple[List[Shape], List[Shape]]:
         # consume one 1-D uint8 array [inputLen]
         L = int(inputShapes[0][0])
+        # Add padding needed when merging tokens
+        padding = 3
         # produce a 1-D int32 array [inputLen] and a scalar int32 []
-        return inputShapes, [[L], []]
+        return inputShapes, outputShapes
 
     def computeOps(self) -> int:
         op = self.mapper.parser.operatorRepresentation
-        inputLen = int(op["inputLen"])
+        N = int(op["sequenceLength"])
+        M = int(op["maxPieceLen"])
 
         # 1) Read each input byte
-        reads = inputLen
+        reads = N
 
         # 2) One str_lookup (binary‐search) per code‐point
-        lookups = inputLen
+        lookups = N * M
 
         # 3) Worst‐case greedy merges:
         #    on each merge we scan ~current_length−1 pairs, and we do
         #    up to (initial_length−1) merges total.
         #    sum_{k=1..inputLen−1} k  = inputLen*(inputLen−1)/2
-        merges = inputLen * (inputLen - 1) // 2
+        merges = N * (N - 1) // 2
 
         # 4) Write out each token id
-        writes = inputLen
+        writes = N
         # 5) One extra write for the final n_tokens scalar
-        writes += 1
+        writes = N + 1
 
         return reads + lookups + merges + writes
 
