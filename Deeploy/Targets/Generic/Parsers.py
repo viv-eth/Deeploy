@@ -2488,72 +2488,80 @@ class EncodeParser(NodeParser):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
-        # our new custom Encode has 1 input, 2 outputs, and exactly these attrs:
+        # we expect op="Encode", 2 inputs, 2 outputs, and exactly these attrs:
         required = {
-            "vocabSize", "maxPieceLen", "byteFallbackOffset", "unkId", "prefixId", "vocabPieces", "vocabIds",
-            "vocabScores"
+            "vocabSize",  # int
+            "maxPieceLen",  # int
+            "byteFallbackOffset",  # int
+            "unkId",  # int
+            "bosId",  # int
+            "bosName",  # str
+            "eosId",  # int
+            "eosName",  # str
+            "seqLen",  # int
+            "prefixId",  # int
+            "vocabPieces",  # list[str]
+            "vocabIds",  # list[int]
+            "vocabScores",  # list[float]
         }
-        if node.op != "Encode" \
-            or len(node.inputs) != 1 \
-            or len(node.outputs) != 2 \
-            or not required.issubset(node.attrs.keys()):
+        if (node.op != "Encode" or len(node.inputs) != 2 or len(node.outputs) != 2
+                or not required.issubset(node.attrs.keys())):
             return False
 
-        # helper to pull out either numpy scalars, lists, or built-in lists
-        def unwrap(attr):
-            if hasattr(attr, "tolist"):
-                return attr.tolist()
-            if hasattr(attr, "values"):
-                return attr.values.tolist()
-            if isinstance(attr, list):
-                return attr
-            raise TypeError(f"Don’t know how to unwrap {attr!r}")
+        def unwrap(x):
+            if hasattr(x, "tolist"):
+                return x.tolist()
+            if hasattr(x, "values"):
+                return x.values.tolist()
+            if isinstance(x, list):
+                return x
+            raise TypeError(f"Cannot unwrap {x!r}")
 
         def c_literal(s: str) -> str:
-            r"""
-            Build a C string literal containing s in UTF-8,
-            escaping only \", \\, NL and CR.
-            Other bytes (including UTF-8 multibyte) are left as-is.
-            The returned string includes its wrapping quotes.
-            """
             b = s.encode("utf-8")
             out = []
             for byte in b:
-                if byte == 0x22:  # "
+                if byte == 0x22:
                     out.append(r'\"')
-                elif byte == 0x5C:  # backslash
+                elif byte == 0x5C:
                     out.append(r'\\')
-                elif byte == 0x0A:  # newline
+                elif byte == 0x0A:
                     out.append(r'\n')
-                elif byte == 0x0D:  # carriage-return
+                elif byte == 0x0D:
                     out.append(r'\r')
-                elif 0x20 <= byte < 0x7F:  # printable ASCII
+                elif 0x20 <= byte < 0x7F:
                     out.append(chr(byte))
                 else:
-                    # non-ASCII → raw \xHH escape
                     out.append(f"\\x{byte:02x}")
             return '"' + "".join(out) + '"'
 
-        # scalar attrs
+        # 1) scalars
         self.operatorRepresentation["vocabSize"] = int(node.attrs["vocabSize"])
         self.operatorRepresentation["maxPieceLen"] = int(node.attrs["maxPieceLen"])
         self.operatorRepresentation["byteFallbackOffset"] = int(node.attrs["byteFallbackOffset"])
         self.operatorRepresentation["unkId"] = int(node.attrs["unkId"])
+        self.operatorRepresentation["bosId"] = int(node.attrs["bosId"])
+        self.operatorRepresentation["bosName"] = int(node.attrs["bosName"])
+        self.operatorRepresentation["eosId"] = int(node.attrs["eosId"])
+        self.operatorRepresentation["eosName"] = int(node.attrs["eosName"])
         self.operatorRepresentation["prefixId"] = int(node.attrs["prefixId"])
+        self.operatorRepresentation["sequenceLength"] = int(node.attrs["seqLen"])
 
-        # pull out the two flat lists
+        # 2) build vocabulary items list of (c_literal, id)
         pieces = unwrap(node.attrs["vocabPieces"])
-        escaped = [c_literal(p) for p in pieces]
         ids = unwrap(node.attrs["vocabIds"])
         scores = unwrap(node.attrs["vocabScores"])
-        items = list(zip(escaped, ids))
-        # re-zip into your single list for the template
+
+        # escape all pieces
+        escaped = [c_literal(p) for p in pieces]
         self.operatorRepresentation["vocabItems"] = list(zip(escaped, ids))
         self.operatorRepresentation["vocabScores"] = scores
-        vocabPiecesById = [""] * len(escaped)
-        for lit, idx in items:
-            vocabPiecesById[idx] = lit
-        self.operatorRepresentation["vocabPiecesById"] = vocabPiecesById
+
+        # 3) also need a reverse map for piece‐by‐id (for fast lookup in template)
+        vocab_by_id = [""] * len(escaped)
+        for lit, idx in self.operatorRepresentation["vocabItems"]:
+            vocab_by_id[idx] = lit
+        self.operatorRepresentation["vocabPiecesById"] = vocab_by_id
 
         return True
 
@@ -2561,17 +2569,17 @@ class EncodeParser(NodeParser):
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-        inp = ctxt.lookup(node.inputs[0].name)
+        # hook up actual graph names & shapes
+        inp_bytes = ctxt.lookup(node.inputs[0].name)  # uint8 array of unknown length
+        max_length = ctxt.lookup(node.inputs[1].name)  # int32 scalar
+
         out_ids = ctxt.lookup(node.outputs[0].name)
         out_n = ctxt.lookup(node.outputs[1].name)
 
-        # 1-D input
-        L = int(inp.shape[0])
-
-        # now fill in the rest of the names your template uses
-        self.operatorRepresentation["inputLen"] = L
-        self.operatorRepresentation["input_bytes"] = inp.name
-        self.operatorRepresentation["token_ids"] = out_ids.name
+        # record for the template
+        self.operatorRepresentation["inputBytes"] = inp_bytes.name
+        self.operatorRepresentation["maxLength"] = max_length.name
+        self.operatorRepresentation["tokenIds"] = out_ids.name
         self.operatorRepresentation["n_tokens"] = out_n.name
 
         return ctxt, True
