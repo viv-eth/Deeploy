@@ -2575,3 +2575,92 @@ class EncodeParser(NodeParser):
         self.operatorRepresentation["n_tokens"] = out_n.name
 
         return ctxt, True
+
+
+class DecodeParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> bool:
+        # Check op / arity / required attrs
+        required = {
+            "vocab",  # list of Python strings
+            "byte_pieces",  # list of Python single-char strings (len=256)
+            "bos_id",  # int
+            "eos_id",  # int
+            "maxPieceLen",  # int
+            "nTokens",  # int
+        }
+        if (node.op != "Decode" or len(node.inputs) != 2 or len(node.outputs) != 1
+                or not required.issubset(node.attrs.keys())):
+            return False
+
+        # Helpers
+        def unwrap(attr):
+            if hasattr(attr, "tolist"):
+                return attr.tolist()
+            if hasattr(attr, "values"):
+                return attr.values.tolist()
+            if isinstance(attr, list):
+                return attr
+            raise TypeError(f"Don’t know how to unwrap {attr!r}")
+
+        def c_literal(s: str) -> str:
+            b = s.encode("utf-8")
+            out = []
+            for byte in b:
+                if byte == 0x22:  # "
+                    out.append(r'\"')
+                elif byte == 0x5C:  # backslash
+                    out.append(r'\\')
+                elif byte == 0x0A:  # newline
+                    out.append(r'\n')
+                elif byte == 0x0D:  # carriage-return
+                    out.append(r'\r')
+                elif 0x20 <= byte < 0x7F:
+                    out.append(chr(byte))
+                else:
+                    out.append(f"\\x{byte:02x}")
+            return '"' + "".join(out) + '"'
+
+        # 1) Build C‐literals for vocab pieces
+        pieces = unwrap(node.attrs["vocab"])
+        escaped = [c_literal(p) for p in pieces]
+        self.operatorRepresentation["vocabSize"] = len(escaped)
+        self.operatorRepresentation["vocabPiecesById"] = escaped
+
+        # 2) Flatten byte_pieces into hex literals
+        raw_bytes = unwrap(node.attrs["byte_pieces"])
+        flat = []
+        for ch in raw_bytes:
+            val = ord(ch) if isinstance(ch, str) else int(ch)
+            flat.extend([val, 0])
+        self.operatorRepresentation["bytePiecesFlat"] = [f"0x{b:02x}" for b in flat]
+
+        # 3) Static scalar attrs
+        self.operatorRepresentation["bosId"] = int(node.attrs["bos_id"])
+        self.operatorRepresentation["eosId"] = int(node.attrs["eos_id"])
+        self.operatorRepresentation["maxPieceLen"] = int(node.attrs["maxPieceLen"])
+        self.operatorRepresentation["nTokens"] = int(node.attrs["nTokens"])
+
+        return True
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+        # look up the GraphSurgeon symbols in the context
+        prev = ctxt.lookup(node.inputs[0].name)
+        curr = ctxt.lookup(node.inputs[1].name)
+        out = ctxt.lookup(node.outputs[0].name)
+
+        # record their C-names for the template
+        self.operatorRepresentation["prevIds"] = prev.name
+        self.operatorRepresentation["ids"] = curr.name
+        self.operatorRepresentation["outPieces"] = out.name
+
+        # grab actual sequence length from the first input's shape
+        self.operatorRepresentation["sequenceLength"] = int(prev.shape[0])
+
+        return ctxt, True
