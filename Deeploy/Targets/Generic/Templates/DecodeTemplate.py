@@ -33,12 +33,6 @@ referenceTemplate = NodeTemplate(r"""
 
 #define V ${vocabSize}
 
-static const char *vocab_by_id[V] = {
-% for piece in vocabPiecesById:
-    ${piece}${"," if not loop.last else ""}
-% endfor
-};
-
 static const unsigned char byte_pieces[512] = {
 % for b in bytePiecesFlat:
     ${b}${"," if not loop.last else ""}
