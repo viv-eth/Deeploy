@@ -93,11 +93,26 @@ def python_encode(vocab: List[str], vocab_scores: List[float], max_token_length:
     return tokens, len(tokens)
 
 
-def python_decode(vocab: List[str], token_ids: List[int]) -> List[str]:
-    """
-    A trivial “decode” reference: map each token‐ID back to its vocab piece.
-    """
-    return [vocab[t] for t in token_ids]
+def python_decode(vocab: List[str],
+                  token_ids: List[int],
+                  bos_id: int,
+                  eos_id: int) -> List[str]:
+    pieces: List[str] = []
+    prev = None
+    for tok in token_ids:
+        # stop before emitting the EOS piece
+        if tok == eos_id:
+            break
+
+        piece = vocab[tok]
+        # drop dummy-space only if right after BOS
+        if prev == bos_id and piece.startswith(" "):
+            piece = piece[1:]
+
+        pieces.append(piece)
+        prev = tok
+
+    return pieces
 
 
 # -----------------------------------------------------------------------------
@@ -153,7 +168,7 @@ def main():
     print("Python‐reference n_tokens =", n_tok)
 
     # ─── Step 3) Run Python reference decode → decoded_pieces
-    decoded_pieces = python_decode(pieces, tokens_list)
+    decoded_pieces = python_decode(pieces, tokens_list, args.bos_id, args.eos_id)
     print("Python‐reference decoded pieces:", decoded_pieces)
 
     # ─── Step 4) Save inputs.npz / outputs.npz
@@ -171,7 +186,7 @@ def main():
         decoded_bytes.extend(b)
     out_arr = np.array(decoded_bytes, dtype = np.uint8)
 
-    np.savez(os.path.join(odir, "outputs.npz"), decoded_pieces = out_arr)
+    np.savez(os.path.join(odir, "outputs.npz"), decoded_pieces = out_arr, n_tokens = np.array([n_tok], dtype = np.int32))
     print(f"Saved reference outputs.npz (decoded_pieces length = {out_arr.shape[0]})")
 
     # ─── Step 5) Build the ONNX graph for Encode→Slice→Slice→Concat→Decode ───────
