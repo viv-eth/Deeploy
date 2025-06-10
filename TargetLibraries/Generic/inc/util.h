@@ -89,4 +89,8 @@ void PrintArray_u16(uint16_t const *__restrict__ pSrcA, uint32_t N,
 void PrintArray_u32(uint32_t const *__restrict__ pSrcA, uint32_t N,
                     uint32_t offset);
 
+int compare_tokens(const void *a, const void *b);
+
+int str_lookup(const char *str, const TokenIndex *tbl, int n);
+
 #endif //__DEEPLOY_BASIC_MATH_UTIL_HEADER_

@@ -34,4 +34,9 @@
 typedef double float64_t;
 typedef float float32_t;
 
+typedef struct {
+  const char *str;
+  int id;
+} TokenIndex;
+
 #endif //__DEEPLOY_BASIC_MATH_TYPES_HEADER_

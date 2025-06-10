@@ -505,3 +505,15 @@ void PrintArray_u32(uint32_t const *__restrict__ pSrcA, uint32_t N,
   }
   deeploy_log("\r\n");
 }
+
+int compare_tokens(const void *a, const void *b) {
+  const TokenIndex *A = (const TokenIndex *)a;
+  const TokenIndex *B = (const TokenIndex *)b;
+  return strcmp(A->str, B->str);
+}
+
+int str_lookup(const char *str, const TokenIndex *tbl, int n) {
+  TokenIndex key = {.str = str, .id = -1};
+  TokenIndex *res = bsearch(&key, tbl, n, sizeof(TokenIndex), compare_tokens);
+  return res ? res->id : -1;
+}
