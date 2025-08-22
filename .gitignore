@@ -18,7 +18,9 @@ package.json
 package-lock.json
 .mypy_cache
 node_modules
-
+**/.deeploy/*
+**/deeploy/*
+.deeploy/
 compile_commands.json
 
 docs/_autosummary
@@ -38,3 +40,23 @@ DeeployTest/Tests/**/*.py
 DeeployTest/Tests/**/*.json
 DeeployTest/Tests/**/generateTest.py
 DeeployTest/out.txt
+
+CHANGELOG_GEN.md
+Network_bkp.c
+Network_WORKING.c
+network_golden.c
+inputs.npz
+network.onnx
+outputs.npz
+test_encode.onnx
+test_encode.py
+test_yapf.sh
+tokenizer_graph.ipynb
+tokenizer.onnx
+isort_format.fish
+yapf_format.fish
+DeeployTest/.env
+DeeployTest/deeploy
+DeeployTest/run_tests.fish
+llama_helpers/archive/*
+llama_helpers/encode_out/old/

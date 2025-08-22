@@ -123,6 +123,8 @@ def generateTestOutputsHeader(deployer: NetworkDeployer,
         data_type = output_data_type[f"output_{index}"]
         isdatafloat = (data_type.referencedType.typeName == "float32_t")
 
+        # FIXME: It should not always convert to signed with shift
+        # TODO: Open discussion on GitHub
         if signProp and not isdatafloat:
             output_n_levels[f"output_{index}"] = deployer.ctxt.lookup(f'output_{index}').nLevels
             output_signed[f"output_{index}"] = deployer.ctxt.lookup(f'output_{index}')._signed

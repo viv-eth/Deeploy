@@ -98,7 +98,7 @@ echo-bash:
 
 toolchain: llvm llvm-compiler-rt-riscv llvm-compiler-rt-arm picolibc-arm picolibc-riscv
 
-emulators: snitch_runtime pulp-sdk qemu banshee mempool
+ emulators: snitch_runtime pulp-sdk qemu mempool
 
 ${TOOLCHAIN_DIR}/llvm-project:
 	cd ${TOOLCHAIN_DIR} && \
@@ -486,6 +486,10 @@ format:
 	autoflake -i -r --remove-all-unused-imports --ignore-init-module-imports --exclude "*/third_party/**" ./
 	yapf -ipr -e "third_party/" -e "install/" -e "toolchain/" .
 	isort --sg "**/third_party/*"  --sg "install/*" --sg "toolchain/*" ./
+	python scripts/run_clang_format.py -e "*/third_party/*" -e "*/install/*" -e "*/toolchain/*" -e "*/.deeploy/*" --clang-format-executable=${LLVM_INSTALL_DIR}/bin/clang-format -ir ./ scripts
+	autoflake -i -r --remove-all-unused-imports --ignore-init-module-imports --exclude "*/third_party/**" --exclude "*/.deeploy/**" ./
+	yapf -ipr -e "third_party/" -e "install/" -e "*/third_party/*" .
+	isort --sg "**/third_party/*"  --sg "install/*" --sg "toolchain/*" --sg ".deeploy/*" ./
 
 docs:
 	make -C docs html
